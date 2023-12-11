@@ -1,0 +1,97 @@
+jk,ol * 01/09/2022 - eetech00@yahoo.com
+* Model: PS2501-1 (Renesas)
+* CTR(Typical): 300@If=5mA
+* A = PIN 1: diode anode
+* K = PIN 2: diode cathode
+* E = PIN 3: BJT emitter
+* C = PIN 4: BJT collector
+.SUBCKT PS2501-1 A K C E
+D1 A D LED
+*OptoLED
+Vsense D K 0
+*Forward If current sense
+*using Vsense
+Hd R 0 Vsense 1
+*I-V (current dependent voltage source)
+Rd R T 100K
+Cd T 0 20p
+* Photodetector {(IC vs IF) / * Q1 BF}
+* where the data of the collector current
+* versus forward current
+* are derived from the CTR
+* graph using polynomial fit
+Gctr C B TABLE
++ {If(V(T)<=3m,
++ ((-80000000000*PWR(V(T),5)+800000000*
++ PWR(V(T),4)-3000000*PWR(V(T),3)+5177.2*
++ PWR(V(T),2)+0.2453*V(T)-0.00005)*1.04/700),
++ ((9000000*PWR(V(T),5)-
++ 998113*PWR(V(T),4)+42174*PWR
++ (V(T),3)-
++ 861.32*PWR(V(T),2)+
++ 9.0836*V(T)-0.0078)*0.945/700))}
++ (0,0) (0.1m, 0.1m)
+Q1 C B E DETECTOR
+*
+.MODEL LED D
++ IS=2.05132e-015 RS=0.764256 N=1.54193
++ BV=6 IBV=10u CJO=10p EG=1.424 TT=500n
+*
+.MODEL DETECTOR NPN IS=2.857P BF=525
++ NF=1.1786653 BR=20 TF=80.64p
++ TR=4.56886n
++ CJE=16.315P CJC=21.1189P VAF=250 ISS=0
++ CJS=44.5657p ISC=120p
+.ENDS PS2501-1
+
+
+
+Version 4
+SymbolType BLOCK
+LINE Normal -24 8 -32 -8
+LINE Normal -24 8 -16 -8
+LINE Normal 24 -8 40 -16
+LINE Normal 24 16 24 -16
+LINE Normal 33 10 36 14
+LINE Normal 31 14 36 14
+LINE Normal 31 14 33 10
+LINE Normal 32 12 24 8
+LINE Normal 40 16 36 14
+LINE Normal 24 12 24 -12
+LINE Normal 2 -6 8 -4
+LINE Normal 2 -2 2 -6
+LINE Normal 8 -4 2 -2
+LINE Normal 2 2 8 4
+LINE Normal 2 6 2 2
+LINE Normal 8 4 2 6
+LINE Normal -24 -16 -24 -8
+LINE Normal -48 -16 -24 -16
+LINE Normal -24 8 -24 16
+LINE Normal -48 16 -24 16
+LINE Normal -16 -8 -32 -8
+LINE Normal 24 -32 -24 -32
+LINE Normal -24 32 24 32
+LINE Normal 48 -16 40 -16
+LINE Normal 48 16 40 16
+LINE Normal 2 -4 -8 -4
+LINE Normal 2 4 -8 4
+LINE Normal -16 8 -32 8
+ARC Normal -8 -32 56 32 24 32 24 -32
+ARC Normal 8 -32 -56 32 -24 -32 -24 32
+WINDOW 3 1 48 Center 2
+WINDOW 0 0 -48 Center 2
+SYMATTR Value PS2501-1
+SYMATTR Prefix X
+SYMATTR Description Optocoupler
+PIN -48 -16 NONE 8
+PINATTR PinName A
+PINATTR SpiceOrder 1
+PIN -48 16 NONE 8
+PINATTR PinName K
+PINATTR SpiceOrder 2
+PIN 48 -16 NONE 8
+PINATTR PinName C
+PINATTR SpiceOrder 3
+PIN 48 16 NONE 8
+PINATTR PinName E
+PINATTR SpiceOrder 4
