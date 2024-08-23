@@ -142,3 +142,37 @@ Function SheetNamesContainingStringByCell(SearchCell As Range) As String
     
     SheetNamesContainingStringByCell = result
 End Function
+
+Function SheetsContainingStringByCell(SearchString As String) As String
+    Dim ws As Worksheet
+    Dim cell As Range
+    Dim result As String
+    Dim found As Boolean
+    
+    result = ""
+    
+    ' Loop through all sheets in the workbook
+    For Each ws In ThisWorkbook.Sheets
+        found = False
+        ' Loop through each cell in the used range of the worksheet
+        For Each cell In ws.UsedRange
+            ' Check if the cell contains the specified string
+            If InStr(1, cell.Text, SearchString, vbTextCompare) > 0 Then
+                found = True
+                Exit For
+            End If
+        Next cell
+        
+        ' If the string was found in any cell, add the sheet name to the result
+        If found Then
+            result = result & ws.Name & ", "
+        End If
+    Next ws
+    
+    ' Remove the trailing comma and space
+    If Len(result) > 0 Then
+        result = Left(result, Len(result) - 2)
+    End If
+    
+    SheetsContainingStringByCell = result
+End Function
