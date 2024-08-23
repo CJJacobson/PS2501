@@ -95,3 +95,25 @@ PINATTR SpiceOrder 3
 PIN 48 16 NONE 8
 PINATTR PinName E
 PINATTR SpiceOrder 4
+
+
+Function SheetNamesContainingString(str As String) As String
+    Dim ws As Worksheet
+    Dim result As String
+    result = ""
+    
+    ' Loop through all sheets in the workbook
+    For Each ws In ThisWorkbook.Sheets
+        ' Check if the sheet name contains the specified string
+        If InStr(1, ws.Name, str, vbTextCompare) > 0 Then
+            result = result & ws.Name & ", "
+        End If
+    Next ws
+    
+    ' Remove the trailing comma and space
+    If Len(result) > 0 Then
+        result = Left(result, Len(result) - 2)
+    End If
+    
+    SheetNamesContainingString = result
+End Function
