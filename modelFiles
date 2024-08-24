@@ -214,3 +214,33 @@ Function SheetsContainingStringInColumnA(SearchString As String) As String
     
     SheetsContainingStringInColumnA = result
 End Function
+
+
+Function SumQuantitiesForStringInColumnA(SearchString As String) As Double
+    Dim ws As Worksheet
+    Dim cell As Range
+    Dim totalSum As Double
+    Dim found As Boolean
+    
+    totalSum = 0
+    
+    ' Loop through all sheets in the workbook
+    For Each ws In ThisWorkbook.Sheets
+        found = False
+        
+        ' Loop through each cell in column A until a blank cell is encountered
+        For Each cell In ws.Range("A1:A" & ws.Cells(ws.Rows.Count, "A").End(xlUp).Row)
+            ' Check if the cell contains the specified string
+            If Len(cell.Text) = 0 Then
+                Exit For
+            ElseIf InStr(1, cell.Text, SearchString, vbTextCompare) > 0 Then
+                ' Add the corresponding quantity from column B to the total sum
+                totalSum = totalSum + Val(ws.Cells(cell.Row, "B").Value)
+                found = True
+            End If
+        Next cell
+    Next ws
+    
+    ' Return the total sum
+    SumQuantitiesForStringInColumnA = totalSum
+End Function
