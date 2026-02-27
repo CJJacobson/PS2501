@@ -281,3 +281,130 @@ Function SheetsContainingStringAndQuantityInColumnA(SearchString As String) As S
     
     SheetsContainingStringAndQuantityInColumnA = result
 End Function
+
+import os
+import re
+import numpy as np
+import pandas as pd
+
+def extract_header_text(file_path, search_bytes=65536):
+    """Phase 1: Prints readable ASCII strings from the header to locate Scaling Factors."""
+    print("--- EXTRACTING METADATA STRINGS ---")
+    with open(file_path, 'rb') as f:
+        raw_data = f.read(search_bytes)
+        
+    # Find continuous printable ASCII characters (length 5+)
+    strings = re.findall(b'[ -~]{5,}', raw_data)
+    for s in strings[:40]:  # Limit output to first 40 strings
+        print(s.decode('ascii', errors='ignore'))
+    print("-----------------------------------\n")
+
+def find_alignment_and_type(file_path, num_channels, max_header_bytes=65536, test_frames=2000):
+    """Phase 2: Sweeps through offsets and datatypes to find the 'smoothest' signal."""
+    print("--- BRUTE-FORCING BINARY FORMAT ---")
+    
+    # < = Little Endian, > = Big Endian. i2 = 16-bit int, f4 = 32-bit float
+    dtypes_to_test = ['<i2', '>i2', '<f4', '>f4', '<i4']
+    
+    with open(file_path, 'rb') as f:
+        # Read just enough of the file to run our heuristic test
+        raw = f.read(max_header_bytes + (test_frames * 8 * num_channels))
+        
+    best_score = float('inf')
+    best_params = None
+    
+    for dt_str in dtypes_to_test:
+        dt = np.dtype(dt_str)
+        frame_bytes = num_channels * dt.itemsize
+        
+        # Slide our starting byte one-by-one to find the exact header boundary
+        for offset in range(max_header_bytes):
+            chunk = raw[offset : offset + (test_frames * frame_bytes)]
+            if len(chunk) < test_frames * frame_bytes:
+                break
+                
+            data = np.frombuffer(chunk, dtype=dt).reshape(test_frames, num_channels)
+            
+            # Cast to float32 to prevent integer underflow/overflow during np.diff
+            data_float = data.astype(np.float32)
+            
+            # Standard deviation normalizes the scale so we can fairly compare ints to floats
+            std_devs = np.std(data_float, axis=0)
+            valid_channels = std_devs > 1e-6  # Ignore flatlined/inactive channels
+            
+            if not np.any(valid_channels):
+                continue
+                
+            # Heuristic: Smoothness = Mean Absolute Jump / Standard Deviation
+            # Correct alignment gives smooth continuous waves (very low score). 
+            # Misaligned bytes give violent, pseudo-random noise (score closer to 1.0+).
+            diffs = np.abs(np.diff(data_float[:, valid_channels], axis=0))
+            score = np.mean(np.mean(diffs, axis=0) / std_devs[valid_channels])
+            
+            if score < best_score:
+                best_score = score
+                best_params = {'dtype': dt_str, 'offset': offset, 'score': score}
+
+    if best_params:
+        print(f"✅ Best Data Type: {best_params['dtype']}")
+        print(f"✅ Header Ends At: {best_params['offset']} bytes")
+        print(f"✅ Smoothness Score: {best_params['score']:.4f} (Lower is better)")
+    else:
+        print("❌ Could not determine format.")
+        
+    return best_params
+
+def export_to_csv_safely(file_path, out_csv, num_channels, dtype_str, offset, chunk_size=250_000):
+    """Phase 3: Fast, Zero-RAM export using Memory Mapping."""
+    print("\n--- EXPORTING TO CSV ---")
+    dt = np.dtype(dtype_str)
+    file_size = os.path.getsize(file_path)
+    
+    valid_data_bytes = file_size - offset
+    frame_bytes = num_channels * dt.itemsize
+    num_frames = valid_data_bytes // frame_bytes
+    
+    # memmap maps the file on your hard drive to virtual memory without consuming actual RAM
+    mmap_data = np.memmap(file_path, dtype=dt, mode='r', offset=offset, shape=(num_frames, num_channels))
+    
+    cols = [f"Ch_{i+1}" for i in range(num_channels)]
+    print(f"Total Rows to Export: {num_frames:,}")
+    
+    # Iterate in blocks so we don't blow up system RAM
+    for start_idx in range(0, num_frames, chunk_size):
+        end_idx = min(start_idx + chunk_size, num_frames)
+        
+        # Load just this chunk into RAM
+        df = pd.DataFrame(mmap_data[start_idx:end_idx], columns=cols)
+        
+        # ---------------------------------------------------------
+        # OPTIONAL: Apply scaling factors you found in the header text here!
+        # If the file is int16, you will need to apply the slope/intercept
+        # Example: df["Ch_1"] = (df["Ch_1"] * 0.00512) + 0.0
+        # ---------------------------------------------------------
+        
+        # Write CSV header only on the first chunk; append the rest
+        is_first = (start_idx == 0)
+        mode = 'w' if is_first else 'a'
+        df.to_csv(out_csv, mode=mode, header=is_first, index=False)
+        
+        print(f"Exported up to row {end_idx:,} / {num_frames:,}...", end='\r')
+        
+    print("\nExport Complete!")
+
+# --- EXECUTION ---
+if __name__ == "__main__":
+    FILE_NAME = "your_data_file.tmx"
+    KNOWN_CHANNELS = 16  # <-- Change this to your specific recorded channel count!
+    OUT_CSV = "output_data.csv"
+    
+    # 1. Look for plain-text clues (channel names, scaling multipliers)
+    extract_header_text(FILE_NAME)
+    
+    # 2. Mathematically guess the data type and byte alignment
+    params = find_alignment_and_type(FILE_NAME, KNOWN_CHANNELS)
+    
+    # 3. Safely stream to CSV
+    if params:
+        export_to_csv_safely(FILE_NAME, OUT_CSV, KNOWN_CHANNELS, params['dtype'], params['offset'])
+
